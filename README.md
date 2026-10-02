@@ -69,7 +69,7 @@ The app has no settings.
 3. For a JSON Dataset, select **Analyze sample events** to check its data against the v2 Datatypes. Keep the recommended Datatype ID or pick another.
 4. Optionally select **Also read Parquet data in this Dataset** (or JSON, on a Parquet Dataset).
 5. Select **Migrate to v2** and confirm.
-6. The app then runs a test search to verify the Dataset really searches on v2, shows the result in the **Status** column, and only then measures v2 search speed. You can re-run it from the review panel with **Run test search**.
+6. The app then runs a test search to verify the Dataset really searches on v2, shows the result in the **Status** column, and only then measures v2 search speed. You can re-run it from the review panel with **Run test search**, choosing how far back to look if the Dataset has no recent events.
 
 To migrate several Datasets, select their rows, select **Analyze sample events**, then select **Migrate to v2**. Each Dataset gets the Datatype ID shown in its row. The **Status** column shows which Datasets were analyzed, which returned no events, and which failed; the confirmation warns about any that were not checked.
 
@@ -117,6 +117,7 @@ This app is built by VisiCore Tech. VisiCore Tech owns support, maintenance, and
 ## Known Limitations
 
 * Recommendations cover JSON Datasets. Parquet Datasets default to `cribl_lake_parquet` and Splunk DDSS Datasets to `splunk_journal`.
+* When either timing counted no events, no speed comparison is shown for that Dataset.
 * Search speed is the run time of one fixed search (a count of the last 24 hours), best of two runs. It indicates the change for that kind of search; other searches may gain more or less, and results vary with load.
 * A recommendation is evidence, not proof. Sample events and the test search are the check.
 * Datasets in other storage formats (for example Netskope) cannot use v2 and are marked **Not supported**.
@@ -168,7 +169,7 @@ README.md
 |---|---|
 | App Name | Migrate Lake DataTypes From v1 to v2 |
 | App ID | cc-visicore-migrate-lake-v1-datatypes-to-v2 |
-| Version | 1.0.0 |
+| Version | 1.0.1 |
 | Author | VisiCore Tech - CriblPacks@VisiCoreTech.com |
 | Developer | Andrew Hendrix |
 | Support Model | partner-built |

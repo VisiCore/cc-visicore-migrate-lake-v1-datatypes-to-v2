@@ -308,7 +308,7 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
         else if (v.state === 'error') basis = 'Verify failed';
         else if (v.computeType !== 'v2') basis = 'Not on v2 yet';
         else if (v.eventCount === 0) basis = 'No events to verify';
-        else basis = v.datatypes.length ? 'Verified' : 'Check Datatype';
+        else basis = v.datatypes.length && !v.timeMismatches ? 'Verified' : 'Check Datatype';
       } else if (version === 'v1') {
         const rec = recommendations[d.id];
         if (rec && plan && plan.primaryId !== rec.datatypeId) basis = 'Chosen manually';
@@ -465,9 +465,10 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     }
   };
 
-  const verify = useCallback(async (id: string): Promise<Verification> => {
+  /** `earliest` searches exactly that range; without it the search looks back step by step until it finds events. */
+  const verify = useCallback(async (id: string, earliest?: string): Promise<Verification> => {
     setVerifications((prev) => ({ ...prev, [id]: { state: 'running' } }));
-    const result = await verifyDataset(id);
+    const result = await verifyDataset(id, earliest ? [earliest] : undefined);
     setVerifications((prev) => ({ ...prev, [id]: result }));
     return result;
   }, []);
@@ -753,7 +754,7 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
         isMeasuring={openDataset ? measuring.has(openDataset.id) : false}
         isHidden={openDataset ? hidden.has(openDataset.id) : false}
         verification={openDataset ? verifications[openDataset.id] : undefined}
-        onVerify={() => openDataset && void verify(openDataset.id)}
+        onVerify={(earliest) => openDataset && void verify(openDataset.id, earliest)}
         emptyResult={openDataset ? emptyResults[openDataset.id] : undefined}
         onToggleHidden={() => {
           if (!openDataset) return;

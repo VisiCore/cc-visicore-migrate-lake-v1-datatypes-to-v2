@@ -5,8 +5,10 @@
 //   2. a custom Datatype has the same ID as the Dataset
 //   3. the Datatype's timestamp anchor/field shows up in the sampled events
 //   4. Dataset name, description, or sampled sourcetypes share a distinctive word with the Datatype
-// A name match alone (4) only makes a Datatype a candidate: a wrong specific Datatype parses
-// timestamps wrongly, so it must be backed by 1-3 before it replaces the Cribl default (generic_ndjson).
+// A wrong specific Datatype parses timestamps wrongly, so one weak signal is never enough to replace the
+// Cribl default (generic_ndjson). A name match alone (4) or a timestamp field alone (3) only makes a Datatype
+// a candidate: plenty of unrelated sources have a field called "created_at" or "timestamp". It takes 1, 2,
+// or 3 and 4 together.
 
 import type { Datatype, LakeDataset, SearchEvent } from './api';
 import { FORMAT_ROWS } from './migration';
@@ -119,6 +121,7 @@ export function recommendJsonDatatype(dataset: LakeDataset, eligible: Datatype[]
     if (d.id === fallback) continue;
     let score = 0;
     let corroborated = false;
+    let hasTimeSignal = false;
     const reasons: string[] = [];
 
     if (sample?.eventCount) {
@@ -135,7 +138,7 @@ export function recommendJsonDatatype(dataset: LakeDataset, eligible: Datatype[]
         if (hitShare >= 0.8) {
           const shared = signalUse[signal.key] - 1;
           score += 10 + 30 / signalUse[signal.key];
-          corroborated = true;
+          hasTimeSignal = true;
           reasons.push(
             `Its ${signal.label} is present in ${pct(hitShare)} of sampled events` +
               (shared ? ` (${shared} other Datatype${shared === 1 ? ' uses' : 's use'} the same one)` : ''),
@@ -152,6 +155,7 @@ export function recommendJsonDatatype(dataset: LakeDataset, eligible: Datatype[]
       const shared = [...tokens(d.id, d.tags)].filter((t) => datasetTokens.has(t));
       if (shared.length) {
         score += Math.min(50, shared.length * 25);
+        if (hasTimeSignal) corroborated = true;
         reasons.push(`Shares "${shared.join('", "')}" with the Dataset name, description, or sourcetype`);
       }
     }

@@ -15,6 +15,8 @@ const seconds = (t: Timing) => `${(t.ms / 1000).toFixed(1)} s`;
 /** Fraction of v1's run time saved on v2 (0.3 = 30% faster, negative = slower). `null` until both are measured. */
 export function speedUp(b: Benchmark | undefined): number | null {
   if (!b?.v1 || !b.v2 || b.v1.ms <= 0) return null;
+  // With no events to count, both timings are only start-up cost and say nothing about search speed.
+  if (!b.v1.events || !b.v2.events) return null;
   return (b.v1.ms - b.v2.ms) / b.v1.ms;
 }
 
@@ -29,6 +31,7 @@ export function median(values: number[]): number | null {
 export function describeSpeed(b: Benchmark | undefined): string {
   if (!b?.v1 && !b?.v2) return '--';
   if (b.v1 && b.v2) {
+    if (speedUp(b) == null) return 'No events in 24 hr to compare';
     const gain = speedUp(b) ?? 0;
     const pct = Math.abs(Math.round(gain * 100));
     return `${seconds(b.v1)} → ${seconds(b.v2)} (${pct === 0 ? 'no change' : `${pct}% ${gain > 0 ? 'faster' : 'slower'}`})`;

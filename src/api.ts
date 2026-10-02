@@ -375,15 +375,60 @@ export function saveEmptyResults(results: EmptyResults): Promise<void> {
 export type Verification =
   | { state: 'running' }
   | { state: 'error'; message: string }
-  | { state: 'done'; eventCount: number; computeType?: string; datatypes: string[] };
+  | {
+      state: 'done';
+      eventCount: number;
+      computeType?: string;
+      datatypes: string[];
+      /** How far back the search had to look to find events (a relative time such as "-7d"). */
+      earliest: string;
+      /** Events that carry their own `_time` in the raw payload, and how many of those the search timed differently. */
+      timeChecked: number;
+      timeMismatches: number;
+    };
 
-/** Runs a 10-event search over the last 24 hours and reports the engine used and the datatype values returned. */
-export async function verifyDataset(datasetId: string): Promise<Verification> {
+/** Windows tried in turn by the test search, until one returns events. */
+export const VERIFY_WINDOWS = ['-24h', '-7d', '-30d'];
+
+/**
+ * Runs a 10-event test search and reports the engine used, the datatype values returned, and whether event
+ * times look right. Tries each window in turn until one returns events, so a quiet Dataset can still be checked.
+ * Pass a single window to search exactly that range.
+ */
+export async function verifyDataset(datasetId: string, windows: string[] = VERIFY_WINDOWS): Promise<Verification> {
   try {
-    const run = await sampleDataset(datasetId, { earliest: '-24h', limit: 10 });
+    let run: SearchRun = { events: [] };
+    let earliest = windows[0];
+    for (earliest of windows) {
+      run = await sampleDataset(datasetId, { earliest, limit: 10 });
+      if (run.events.length) break;
+    }
     const seen = new Set<string>();
-    for (const e of run.events) if (typeof e.datatype === 'string') seen.add(e.datatype);
-    return { state: 'done', eventCount: run.events.length, computeType: run.computeType, datatypes: [...seen] };
+    let timeChecked = 0;
+    let timeMismatches = 0;
+    for (const e of run.events) {
+      if (typeof e.datatype === 'string') seen.add(e.datatype);
+      // Events written by Cribl Stream carry _time in the raw payload. If the Datatype's timestamp settings
+      // are wrong for this data, the time the search assigns will not match it.
+      if (typeof e._raw !== 'string') continue;
+      try {
+        const rawTime = Number((JSON.parse(e._raw) as { _time?: unknown })._time);
+        if (!Number.isFinite(rawTime)) continue;
+        timeChecked += 1;
+        if (Math.abs(Number(e._time) - rawTime) > 1) timeMismatches += 1;
+      } catch {
+        /* _raw is not JSON: nothing to compare against */
+      }
+    }
+    return {
+      state: 'done',
+      eventCount: run.events.length,
+      computeType: run.computeType,
+      datatypes: [...seen],
+      earliest,
+      timeChecked,
+      timeMismatches,
+    };
   } catch (err) {
     return { state: 'error', message: err instanceof Error ? err.message : String(err) };
   }

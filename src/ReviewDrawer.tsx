@@ -12,6 +12,15 @@ const TIME_RANGES = [
   { id: '-30d', label: 'Last 30 days' },
 ];
 
+const VERIFY_RANGES = [
+  { id: '-24h', label: 'Last 24 hours' },
+  { id: '-7d', label: 'Last 7 days' },
+  { id: '-30d', label: 'Last 30 days' },
+  { id: '-90d', label: 'Last 90 days' },
+  { id: '-365d', label: 'Last 365 days' },
+];
+const VERIFY_RANGE_LABELS: Record<string, string> = Object.fromEntries(VERIFY_RANGES.map((r) => [r.id, r.label.toLowerCase()]));
+
 const CONFIDENCE: Record<Recommendation['confidence'], { label: string; appearance: 'success' | 'info' | 'default' }> = {
   high: { label: 'Strong match', appearance: 'success' },
   medium: { label: 'Possible match', appearance: 'info' },
@@ -39,7 +48,8 @@ type Props = {
   onMeasure: () => void;
   /** Latest test-search result for this Dataset. Run automatically after a migration, or on demand. */
   verification?: Verification;
-  onVerify: () => void;
+  /** Runs the test search over exactly this range. */
+  onVerify: (earliest: string) => void;
   onClose: () => void;
   onPlanChange: (change: Partial<Plan>) => void;
   onAnalyze: (earliest: string) => void;
@@ -61,6 +71,7 @@ function topValues(counts: Record<string, number>): string {
 export function ReviewDrawer(props: Props) {
   const { dataset, datatypes, plan, recommendation, sample } = props;
   const [earliest, setEarliest] = useState('-24h');
+  const [verifyRange, setVerifyRange] = useState('-24h');
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
   if (!dataset || !plan) return <Drawer isOpen={false} onClose={props.onClose} title="Review Dataset" />;
@@ -301,12 +312,19 @@ export function ReviewDrawer(props: Props) {
               Verify
             </Text>
             <Text color="subtle">
-              Runs automatically after a migration, before search speed is measured. It runs a 10-event search over the
-              last 24 hours and checks which engine and datatype values come back. Dataset
-              changes can take a moment to apply, so re-run if the result looks stale.
+              Runs a 10-event search and checks the engine, the datatype values, and the event times. It runs
+              automatically after a migration, before search speed is measured. If this Dataset has no recent events,
+              choose a longer time range and run it again. Dataset changes can take a moment to apply, so re-run if the
+              result looks stale.
             </Text>
-            <div>
-              <Button pending={verify?.state === 'running'} onClick={props.onVerify}>
+            <div className="analyze-row">
+              <SelectField
+                label="Time range"
+                items={VERIFY_RANGES}
+                value={verifyRange}
+                onChange={(key) => key != null && setVerifyRange(String(key))}
+              />
+              <Button pending={verify?.state === 'running'} onClick={() => props.onVerify(verifyRange)}>
                 Run test search
               </Button>
             </div>
@@ -317,17 +335,22 @@ export function ReviewDrawer(props: Props) {
             )}
             {verify?.state === 'done' && verify.eventCount === 0 && (
               <Alert appearance="warning" title="No events returned">
-                {`The search ran on ${verify.computeType ?? 'an unknown engine'} but found no events in the last 24 hours, so the Datatype could not be checked.`}
+                {`The search ran on ${verify.computeType ?? 'an unknown engine'} but found no events in the ${VERIFY_RANGE_LABELS[verify.earliest] ?? 'selected range'}, so the Datatype could not be checked. Choose a longer time range above and run it again. If this Dataset had events on v1 in that range, the Datatype's timestamp settings may be placing them outside it: try another Datatype, or revert to v1.`}
               </Alert>
             )}
             {verify?.state === 'done' && verify.eventCount > 0 && (
               <Alert
-                appearance={verify.computeType === 'v2' && verify.datatypes.length ? 'success' : 'warning'}
+                appearance={verify.computeType === 'v2' && verify.datatypes.length && !verify.timeMismatches ? 'success' : 'warning'}
                 title={verify.computeType === 'v2' ? 'Search ran on v2' : `Search ran on ${verify.computeType ?? 'an unknown engine'}`}
               >
-                {verify.datatypes.length
-                  ? `${verify.eventCount} events returned with datatype: ${verify.datatypes.join(', ')}.`
-                  : `${verify.eventCount} events returned, but none has a datatype field. The selected Datatype may not match this data.`}
+                {(verify.datatypes.length
+                  ? `${verify.eventCount} events returned (${VERIFY_RANGE_LABELS[verify.earliest] ?? verify.earliest}) with datatype: ${verify.datatypes.join(', ')}.`
+                  : `${verify.eventCount} events returned (${VERIFY_RANGE_LABELS[verify.earliest] ?? verify.earliest}), but none has a datatype field. The selected Datatype may not match this data.`) +
+                  (verify.timeMismatches
+                    ? ` ${verify.timeMismatches} of ${verify.timeChecked} events have a different time than the _time recorded in the event, so this Datatype is reading timestamps differently from v1. Create a Datatype that uses _time, or pick another.`
+                    : verify.timeChecked
+                      ? ' Event times match the _time recorded in each event.'
+                      : '')}
               </Alert>
             )}
           </section>
