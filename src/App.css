@@ -1,0 +1,209 @@
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* RadioGroup renders a fieldset; drop the browser's default frame. */
+fieldset {
+  border: 0;
+  min-width: 0;
+}
+
+body {
+  background-color: token('color.background.application');
+  color: token('color.foreground.default');
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  height: 100vh;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Page header stays fixed while .page-content below it scrolls. */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: token('spacing.lg');
+  padding: token('spacing.lg');
+  background-color: token('color.background.application');
+  border-bottom: token('border.default');
+}
+
+.app-main[hidden] {
+  display: none;
+}
+
+.header-actions {
+  display: flex;
+  gap: token('spacing.sm');
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.sm');
+}
+
+.meter {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: token('color.background.neutral.track');
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  background-color: token('color.background.accent.solid.default');
+}
+
+.page-title {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.sm');
+}
+
+/* Capra 12-column grid: fluid columns, 16px gutters, 16px inline padding. */
+.page-content {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: token('spacing.lg');
+  padding: token('spacing.lg');
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.span-12 {
+  grid-column: span 12;
+}
+
+.span-3 {
+  grid-column: span 3;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.sm');
+}
+
+.table-stack {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.sm');
+  min-width: 0;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: token('spacing.lg');
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: token('spacing.sm');
+}
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.xl');
+}
+
+.drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.md');
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: token('spacing.sm');
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: token('spacing.sm') token('spacing.lg');
+  overflow-wrap: anywhere;
+}
+
+.analyze-row {
+  display: flex;
+  align-items: flex-end;
+  gap: token('spacing.md');
+}
+
+.recommendation {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.sm');
+  padding: token('spacing.md');
+  border: token('border.default');
+  background-color: token('color.background.neutral.subtle');
+  overflow-wrap: anywhere;
+}
+
+.recommendation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: token('spacing.md');
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.sm');
+  padding-left: token('spacing.lg');
+}
+
+.create-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: token('spacing.md');
+}
+
+.create-datatype {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.md');
+  padding: token('spacing.md');
+  border: token('border.default');
+}
+
+.confirm-body {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.md');
+}
+
+.confirm-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-left: token('spacing.lg');
+  overflow-wrap: anywhere;
+}

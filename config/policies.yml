@@ -1,0 +1,23 @@
+# Product API access declaration. Declare Cribl product API paths your app needs to access.
+# At install time, admins see exactly which platform resources the app will use.
+
+policies:
+  # List Lake Datasets and their search configuration (v1 or v2).
+  - object: '/products/lake/lakes/default/datasets'
+    actions: ['GET']
+  # Re-read one Dataset, then save its search configuration (migrate to v2, change Datatypes, revert to v1).
+  - object: '/products/lake/lakes/default/datasets/*'
+    actions: ['GET', 'PATCH']
+  # List v2 Datatypes to choose from, and create a custom one when no existing Datatype fits a Dataset.
+  - object: '/m/default_search/search/datatypes'
+    actions: ['GET', 'POST']
+  # Run a small search to sample a Dataset's events (Datatype recommendation and post-migration test).
+  - object: '/m/default_search/search/jobs'
+    actions: ['POST']
+  # Poll the job's status and read its results.
+  - object: '/m/default_search/search/jobs/*'
+    actions: ['GET']
+  - object: '/m/default_search/search/jobs/*/status'
+    actions: ['GET']
+  - object: '/m/default_search/search/jobs/*/results'
+    actions: ['GET']
