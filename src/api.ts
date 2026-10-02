@@ -277,20 +277,22 @@ export type Timing = {
   events: number;
   /** When it was measured (epoch milliseconds). */
   at: number;
+  /** Time range counted, as a relative time such as "-30d". Absent on older timings, which all used "-24h". */
+  earliest?: string;
 };
 
 /** Timings of the same benchmark search on each engine, per Dataset. */
 export type Benchmark = { v1?: Timing; v2?: Timing };
 
 /**
- * Times a fixed search — count every event from the last 24 hours — so v1 and v2 can be compared like for like.
- * A full day makes both engines read real volume; over one hour v2 mostly showed its fixed start-up cost.
+ * Times a fixed search — count every event in the Dataset's chosen time range — so v1 and v2 can be compared
+ * like for like. The range should hold real volume; over a near-empty range both engines show only start-up cost.
  * Returns the engine the job actually ran on, which can lag a just-saved config change.
  */
-export async function timeDataset(datasetId: string): Promise<{ timing: Timing; computeType?: string }> {
-  const run = await runSearch(datasetId, 'summarize events=count()', { earliest: '-24h', limit: 1, timeoutMs: 600_000, exclusive: true });
+export async function timeDataset(datasetId: string, earliest: string): Promise<{ timing: Timing; computeType?: string }> {
+  const run = await runSearch(datasetId, 'summarize events=count()', { earliest, limit: 1, timeoutMs: 600_000, exclusive: true });
   if (run.durationMs == null) throw new Error('Cribl Search did not report how long the job ran.');
-  return { timing: { ms: run.durationMs, events: Number(run.events[0]?.events ?? 0), at: Date.now() }, computeType: run.computeType };
+  return { timing: { ms: run.durationMs, events: Number(run.events[0]?.events ?? 0), at: Date.now(), earliest }, computeType: run.computeType };
 }
 
 // App state lives in the app-scoped KV store, so it survives reloads and is shared by everyone using the app.
@@ -387,15 +389,13 @@ export type Verification =
       timeMismatches: number;
     };
 
-/** Windows tried in turn by the test search, until one returns events. */
-export const VERIFY_WINDOWS = ['-24h', '-7d', '-30d'];
 
 /**
  * Runs a 10-event test search and reports the engine used, the datatype values returned, and whether event
  * times look right. Tries each window in turn until one returns events, so a quiet Dataset can still be checked.
  * Pass a single window to search exactly that range.
  */
-export async function verifyDataset(datasetId: string, windows: string[] = VERIFY_WINDOWS): Promise<Verification> {
+export async function verifyDataset(datasetId: string, windows: string[]): Promise<Verification> {
   try {
     let run: SearchRun = { events: [] };
     let earliest = windows[0];
@@ -432,4 +432,13 @@ export async function verifyDataset(datasetId: string, windows: string[] = VERIF
   } catch (err) {
     return { state: 'error', message: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/** The time range chosen for each Dataset (a relative time such as "-30d"); Datasets not listed use the default. */
+export function loadRanges(): Promise<Record<string, string>> {
+  return kvGet<Record<string, string>>('ranges', {});
+}
+
+export function saveRanges(ranges: Record<string, string>): Promise<void> {
+  return kvPut('ranges', ranges);
 }

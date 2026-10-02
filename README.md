@@ -66,7 +66,8 @@ The app has no settings.
 ### Typical Workflow
 1. Open the app and select **Datasets**. The table lists every Lake Dataset and whether it is on v1 or v2. Cribl's system Datasets (`cribl_logs`, `cribl_metrics`, `default_logs`, `default_metrics`, `default_spans`, `default_events`) are hidden until you select **Show system Datasets**.
 2. Select a Dataset's name to open its review panel.
-3. For a JSON Dataset, select **Analyze sample events** to check its data against the v2 Datatypes. Keep the recommended Datatype ID or pick another.
+3. Choose the **Time range** for this Dataset. The same range is used for the sample analysis, the test search, and the search-speed measurement.
+4. For a JSON Dataset, select **Analyze sample events** to check its data against the v2 Datatypes. Keep the recommended Datatype ID or pick another.
 4. Optionally select **Also read Parquet data in this Dataset** (or JSON, on a Parquet Dataset).
 5. Select **Migrate to v2** and confirm.
 6. The app then runs a test search to verify the Dataset really searches on v2, shows the result in the **Status** column, and only then measures v2 search speed. You can re-run it from the review panel with **Run test search**, choosing how far back to look if the Dataset has no recent events.
@@ -107,7 +108,7 @@ The app makes no external calls.
 
 * The app stores three KV keys, shared by everyone who uses the app: `empty`, the Datasets whose last analysis found no events; `benchmarks-24h`, the search-speed timings per Dataset (run time, event count, when measured), and `hidden`, the IDs of Datasets set aside from the list. Recommendations and sampled events live only in the open page; nothing is kept in browser storage.
 * The only things it changes are the `searchConfig` of the Lake Datasets you confirm and any custom Datatype you choose to create. Stored data, retention, format, and description are sent back unchanged, and the app reports an error if any of them differ after a save.
-* Each analysis or test search creates one search job limited to 50 or 10 events. Measuring search speed runs two searches that count the last 24 hours of events; a migration with measurement on runs four per Dataset (two before, two after).
+* Each analysis or test search creates one search job limited to 50 or 10 events. Measuring search speed runs two searches that count the events in the Dataset's chosen time range; a migration with measurement on runs four per Dataset (two before, two after).
 
 ## Support
 
@@ -118,7 +119,7 @@ This app is built by VisiCore Tech. VisiCore Tech owns support, maintenance, and
 
 * Recommendations cover JSON Datasets. Parquet Datasets default to `cribl_lake_parquet` and Splunk DDSS Datasets to `splunk_journal`.
 * When either timing counted no events, no speed comparison is shown for that Dataset.
-* Search speed is the run time of one fixed search (a count of the last 24 hours), best of two runs. It indicates the change for that kind of search; other searches may gain more or less, and results vary with load.
+* Search speed is the run time of one fixed search (a count of the events in the Dataset's chosen time range), best of two runs. It indicates the change for that kind of search; other searches may gain more or less, and results vary with load.
 * A recommendation is evidence, not proof. Sample events and the test search are the check.
 * Datasets in other storage formats (for example Netskope) cannot use v2 and are marked **Not supported**.
 * Only v2 Datatypes without Additional Extractions, Schema Maps, or Add Fields are offered, matching the limits of v2 federated search.
@@ -169,7 +170,7 @@ README.md
 |---|---|
 | App Name | Migrate Lake DataTypes From v1 to v2 |
 | App ID | cc-visicore-migrate-lake-v1-datatypes-to-v2 |
-| Version | 1.0.1 |
+| Version | 1.0.2 |
 | Author | VisiCore Tech - CriblPacks@VisiCoreTech.com |
 | Developer | Andrew Hendrix |
 | Support Model | partner-built |

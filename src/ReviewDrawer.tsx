@@ -3,23 +3,9 @@ import { Alert, Button, Checkbox, Drawer, Link, Pill, SelectField, Text } from '
 import type { Benchmark, Datatype, EmptyResults, LakeDataset, Verification } from './api';
 import { eligibleDatatypes, FORMAT_ROWS, primaryRow, searchVersionOf, secondaryRow, type FormatRow, type Plan } from './migration';
 import { CreateDatatypeForm } from './CreateDatatypeForm';
+import { rangeLabel, TIME_RANGES } from './ranges';
 import type { Recommendation, Sample } from './recommend';
 import { describeSpeed, describeTiming } from './speed';
-
-const TIME_RANGES = [
-  { id: '-24h', label: 'Last 24 hours' },
-  { id: '-7d', label: 'Last 7 days' },
-  { id: '-30d', label: 'Last 30 days' },
-];
-
-const VERIFY_RANGES = [
-  { id: '-24h', label: 'Last 24 hours' },
-  { id: '-7d', label: 'Last 7 days' },
-  { id: '-30d', label: 'Last 30 days' },
-  { id: '-90d', label: 'Last 90 days' },
-  { id: '-365d', label: 'Last 365 days' },
-];
-const VERIFY_RANGE_LABELS: Record<string, string> = Object.fromEntries(VERIFY_RANGES.map((r) => [r.id, r.label.toLowerCase()]));
 
 const CONFIDENCE: Record<Recommendation['confidence'], { label: string; appearance: 'success' | 'info' | 'default' }> = {
   high: { label: 'Strong match', appearance: 'success' },
@@ -50,6 +36,9 @@ type Props = {
   verification?: Verification;
   /** Runs the test search over exactly this range. */
   onVerify: (earliest: string) => void;
+  /** The one time range used for this Dataset's analysis, test search, and search-speed measurement. */
+  range: string;
+  onRangeChange: (earliest: string) => void;
   onClose: () => void;
   onPlanChange: (change: Partial<Plan>) => void;
   onAnalyze: (earliest: string) => void;
@@ -70,8 +59,7 @@ function topValues(counts: Record<string, number>): string {
 
 export function ReviewDrawer(props: Props) {
   const { dataset, datatypes, plan, recommendation, sample } = props;
-  const [earliest, setEarliest] = useState('-24h');
-  const [verifyRange, setVerifyRange] = useState('-24h');
+  const earliest = props.range;
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
   if (!dataset || !plan) return <Drawer isOpen={false} onClose={props.onClose} title="Review Dataset" />;
@@ -158,21 +146,25 @@ export function ReviewDrawer(props: Props) {
           </Alert>
         )}
 
+        {primary && (
+          <SelectField
+            label="Time range"
+            helperText="Used for the sample analysis, the test search, and the search-speed measurement of this Dataset."
+            items={TIME_RANGES}
+            value={earliest}
+            onChange={(key) => key != null && props.onRangeChange(String(key))}
+          />
+        )}
+
         {primary === 'ndjson' && (
           <section className="drawer-section">
             <Text as="h3" variant="heading-xs">
               Find the right Datatype
             </Text>
             <Text color="subtle">
-              Runs a search for 50 events from this Dataset and compares them with every eligible v2 Datatype.
+              {`Runs a search for 50 events from the ${rangeLabel(earliest)} and compares them with every eligible v2 Datatype.`}
             </Text>
-            <div className="analyze-row">
-              <SelectField
-                label="Time range"
-                items={TIME_RANGES}
-                value={earliest}
-                onChange={(key) => key != null && setEarliest(String(key))}
-              />
+            <div>
               <Button pending={props.isAnalyzing} onClick={() => props.onAnalyze(earliest)}>
                 {sample ? 'Analyze again' : 'Analyze sample events'}
               </Button>
@@ -185,7 +177,7 @@ export function ReviewDrawer(props: Props) {
             {!sample && props.emptyResult && (
               <Alert appearance="warning" title="No events found last time">
                 {`An analysis on ${new Date(props.emptyResult.at).toLocaleDateString()} found no events (${
-                  TIME_RANGES.find((r) => r.id === props.emptyResult?.earliest)?.label.toLowerCase() ?? 'selected range'
+                  rangeLabel(props.emptyResult.earliest)
                 }), so this Dataset is not counted in migration progress. Analyze again to recheck.`}
               </Alert>
             )}
@@ -312,19 +304,10 @@ export function ReviewDrawer(props: Props) {
               Verify
             </Text>
             <Text color="subtle">
-              Runs a 10-event search and checks the engine, the datatype values, and the event times. It runs
-              automatically after a migration, before search speed is measured. If this Dataset has no recent events,
-              choose a longer time range and run it again. Dataset changes can take a moment to apply, so re-run if the
-              result looks stale.
+              {`Runs a 10-event search over the ${rangeLabel(earliest)} and checks the engine, the datatype values, and the event times. It runs automatically after a migration, before search speed is measured. If nothing comes back, choose a longer time range at the top and run it again. Dataset changes can take a moment to apply, so re-run if the result looks stale.`}
             </Text>
-            <div className="analyze-row">
-              <SelectField
-                label="Time range"
-                items={VERIFY_RANGES}
-                value={verifyRange}
-                onChange={(key) => key != null && setVerifyRange(String(key))}
-              />
-              <Button pending={verify?.state === 'running'} onClick={() => props.onVerify(verifyRange)}>
+            <div>
+              <Button pending={verify?.state === 'running'} onClick={() => props.onVerify(earliest)}>
                 Run test search
               </Button>
             </div>
@@ -335,7 +318,7 @@ export function ReviewDrawer(props: Props) {
             )}
             {verify?.state === 'done' && verify.eventCount === 0 && (
               <Alert appearance="warning" title="No events returned">
-                {`The search ran on ${verify.computeType ?? 'an unknown engine'} but found no events in the ${VERIFY_RANGE_LABELS[verify.earliest] ?? 'selected range'}, so the Datatype could not be checked. Choose a longer time range above and run it again. If this Dataset had events on v1 in that range, the Datatype's timestamp settings may be placing them outside it: try another Datatype, or revert to v1.`}
+                {`The search ran on ${verify.computeType ?? 'an unknown engine'} but found no events in the ${rangeLabel(verify.earliest)}, so the Datatype could not be checked. Choose a longer time range at the top and run it again. If this Dataset had events on v1 in that range, the Datatype's timestamp settings may be placing them outside it: try another Datatype, or revert to v1.`}
               </Alert>
             )}
             {verify?.state === 'done' && verify.eventCount > 0 && (
@@ -344,8 +327,8 @@ export function ReviewDrawer(props: Props) {
                 title={verify.computeType === 'v2' ? 'Search ran on v2' : `Search ran on ${verify.computeType ?? 'an unknown engine'}`}
               >
                 {(verify.datatypes.length
-                  ? `${verify.eventCount} events returned (${VERIFY_RANGE_LABELS[verify.earliest] ?? verify.earliest}) with datatype: ${verify.datatypes.join(', ')}.`
-                  : `${verify.eventCount} events returned (${VERIFY_RANGE_LABELS[verify.earliest] ?? verify.earliest}), but none has a datatype field. The selected Datatype may not match this data.`) +
+                  ? `${verify.eventCount} events returned (${rangeLabel(verify.earliest)}) with datatype: ${verify.datatypes.join(', ')}.`
+                  : `${verify.eventCount} events returned (${rangeLabel(verify.earliest)}), but none has a datatype field. The selected Datatype may not match this data.`) +
                   (verify.timeMismatches
                     ? ` ${verify.timeMismatches} of ${verify.timeChecked} events have a different time than the _time recorded in the event, so this Datatype is reading timestamps differently from v1. Create a Datatype that uses _time, or pick another.`
                     : verify.timeChecked
@@ -362,8 +345,7 @@ export function ReviewDrawer(props: Props) {
               Search speed
             </Text>
             <Text color="subtle">
-              The run time of a count of the last 24 hours of events, keeping the faster of two runs. v1 is measured
-              automatically when you migrate, and v2 just after.
+              {`The run time of a count of the events in the ${rangeLabel(earliest)}, keeping the faster of two runs. v1 is measured automatically when you migrate, and v2 just after.`}
             </Text>
             {(props.benchmark?.v1 || props.benchmark?.v2) && (
               <dl className="facts">

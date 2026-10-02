@@ -26,6 +26,8 @@ import {
   loadEmptyResults,
   saveEmptyResults,
   loadHiddenIds,
+  loadRanges,
+  saveRanges,
   saveHiddenIds,
   saveTiming,
   timeDataset,
@@ -52,6 +54,7 @@ import {
   toV2,
   type Plan,
 } from './migration';
+import { DEFAULT_RANGE, rangeAndLonger } from './ranges';
 import { recommendJsonDatatype, summarizeSample, type Recommendation, type Sample } from './recommend';
 import { ReviewDrawer } from './ReviewDrawer';
 import { describeSpeed, isSystemDataset, median, speedUp } from './speed';
@@ -143,6 +146,15 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
   const [emptyResults, setEmptyResults] = useState<EmptyResults>({});
   const emptyResultsRef = useRef<EmptyResults>({});
   const [showEmpty, setShowEmpty] = useState(false);
+  // One time range per Dataset, used for its analysis, test search, and search-speed measurement.
+  const [ranges, setRanges] = useState<Record<string, string>>({});
+  const rangesRef = useRef<Record<string, string>>({});
+  const rangeOf = (id: string) => rangesRef.current[id] ?? DEFAULT_RANGE;
+  const setRangeFor = (id: string, earliest: string) => {
+    rangesRef.current = { ...rangesRef.current, [id]: earliest };
+    setRanges(rangesRef.current);
+    saveRanges(rangesRef.current).catch(() => undefined);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -179,6 +191,13 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     // Timings are a nice-to-have: if the KV store is unavailable the app still migrates, just without history.
     loadBenchmarks().then(setBenchmarks, () => undefined);
     loadHiddenIds().then((ids) => setHidden(new Set(ids)), () => undefined);
+    loadRanges().then(
+      (stored) => {
+        rangesRef.current = { ...stored, ...rangesRef.current };
+        setRanges(rangesRef.current);
+      },
+      () => undefined,
+    );
     loadEmptyResults().then(
       (results) => {
         emptyResultsRef.current = { ...results, ...emptyResultsRef.current };
@@ -395,7 +414,7 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     const emptyIds: string[] = [];
     const worker = async () => {
       for (let id = queue.shift(); id; id = queue.shift()) {
-        const outcome = await analyze(id, '-24h');
+        const outcome = await analyze(id, rangeOf(id));
         tally[outcome] += 1;
         if (outcome === 'empty') emptyIds.push(id);
         setBulkProgress((prev) => prev && { ...prev, done: prev.done + 1 });
@@ -405,7 +424,7 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     setBulkProgress(null);
     const summary =
       `Analyzed ${ids.length} Dataset${ids.length === 1 ? '' : 's'}: ${tally.events} with events` +
-      (tally.empty ? `, ${tally.empty} with no events in the last 24 hours` : '') +
+      (tally.empty ? `, ${tally.empty} with no events in their time range` : '') +
       (tally.failed ? `, ${tally.failed} failed` : '') +
       '. See the Status column.';
     if (emptyIds.length) {
@@ -424,8 +443,9 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
   const measure = useCallback(async (id: string, fallbackEngine: 'v1' | 'v2', startOver = false): Promise<'v1' | 'v2'> => {
     setMeasuring((prev) => new Set(prev).add(id));
     try {
-      const first = await timeDataset(id);
-      const second = await timeDataset(id);
+      const earliest = rangesRef.current[id] ?? DEFAULT_RANGE;
+      const first = await timeDataset(id, earliest);
+      const second = await timeDataset(id, earliest);
       // The job reports the engine it really ran on; a just-saved change can take a moment to apply.
       const engineOf = (r: typeof first) => (r.computeType === 'v2' ? 'v2' : r.computeType === 'v1' ? 'v1' : fallbackEngine);
       const engine = engineOf(second);
@@ -465,10 +485,10 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     }
   };
 
-  /** `earliest` searches exactly that range; without it the search looks back step by step until it finds events. */
-  const verify = useCallback(async (id: string, earliest?: string): Promise<Verification> => {
+  /** Tries each window in turn until one returns events. Pass one window to search exactly that range. */
+  const verify = useCallback(async (id: string, windows: string[]): Promise<Verification> => {
     setVerifications((prev) => ({ ...prev, [id]: { state: 'running' } }));
-    const result = await verifyDataset(id, earliest ? [earliest] : undefined);
+    const result = await verifyDataset(id, windows);
     setVerifications((prev) => ({ ...prev, [id]: result }));
     return result;
   }, []);
@@ -484,7 +504,8 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
       let onV2 = false;
       for (let attempt = 0; attempt < 3 && !onV2; attempt++) {
         await sleep(attempt === 0 ? 5_000 : 20_000);
-        const result = await verify(id);
+        // Nobody is there to pick a longer range, so start at the Dataset's range and step back until events appear.
+        const result = await verify(id, rangeAndLonger(rangeOf(id)));
         if (result.state !== 'done') break;
         onV2 = result.computeType === 'v2';
       }
@@ -754,7 +775,9 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
         isMeasuring={openDataset ? measuring.has(openDataset.id) : false}
         isHidden={openDataset ? hidden.has(openDataset.id) : false}
         verification={openDataset ? verifications[openDataset.id] : undefined}
-        onVerify={(earliest) => openDataset && void verify(openDataset.id, earliest)}
+        onVerify={(earliest) => openDataset && void verify(openDataset.id, [earliest])}
+        range={openDataset ? (ranges[openDataset.id] ?? DEFAULT_RANGE) : DEFAULT_RANGE}
+        onRangeChange={(earliest) => openDataset && setRangeFor(openDataset.id, earliest)}
         emptyResult={openDataset ? emptyResults[openDataset.id] : undefined}
         onToggleHidden={() => {
           if (!openDataset) return;
@@ -796,7 +819,7 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
             </Text>
             {pending.mode === 'migrate' && (
               <Checkbox checked={measureOnMigrate} onChange={(e) => setMeasureOnMigrate(e.target.checked)}>
-                Measure search speed before and after (four searches per Dataset, each counting the last 24 hours)
+                Measure search speed before and after (four searches per Dataset, each counting its selected time range)
               </Checkbox>
             )}
             {unanalyzed.length > 0 && (

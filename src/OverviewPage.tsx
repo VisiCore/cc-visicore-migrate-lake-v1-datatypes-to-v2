@@ -4,6 +4,7 @@ import { ReloadOutlined } from '@capra/icons';
 import { listLakeDatasets, listNonInternalDatasetIds, loadBenchmarks, loadEmptyResults, loadHiddenIds, type Benchmark, type EmptyResults, type LakeDataset } from './api';
 import type { HostTheme } from './host-theme';
 import { emptyReason, primaryRow, searchVersionOf } from './migration';
+import { rangeLabel } from './ranges';
 import { isSystemDataset, median, speedUp } from './speed';
 
 type Row = {
@@ -12,6 +13,7 @@ type Row = {
   v2: string;
   change: string;
   events: string;
+  range: string;
   [key: string]: unknown;
 };
 
@@ -34,7 +36,8 @@ const columns = defineColumns<Row>([
       </Pill>
     ),
   },
-  { id: 'events', label: 'Events searched (24 hr)' },
+  { id: 'events', label: 'Events searched' },
+  { id: 'range', label: 'Time range' },
 ]);
 
 function Kpi({ label, value, note }: { label: string; value: string; note: string }) {
@@ -124,6 +127,7 @@ export function OverviewPage({ theme, onOpenDatasets }: { theme: HostTheme; onOp
     v2: seconds(m.b.v2.ms),
     change: changeText(m.gain),
     events: `${m.b.v1.events.toLocaleString()} → ${m.b.v2.events.toLocaleString()}`,
+    range: rangeLabel(m.b.v1.earliest).replace(/^l/, 'L'),
   }));
   const blank = isLoading && !datasets.length;
   const n = stats.measured.length;
@@ -224,10 +228,10 @@ export function OverviewPage({ theme, onOpenDatasets }: { theme: HostTheme; onOp
               <Button onClick={onOpenDatasets}>Go to Datasets</Button>
             </EmptyState>
           ) : (
-            <Table aria-label="Search speed by Dataset" columns={columns} visibleColumns={['id', 'v1', 'v2', 'change', 'events']} items={rows} isLoading={blank} />
+            <Table aria-label="Search speed by Dataset" columns={columns} visibleColumns={['id', 'v1', 'v2', 'change', 'events', 'range']} items={rows} isLoading={blank} />
           )}
           <Text color="subtle" variant="body-sm-normal">
-            Search speed is the run time of one fixed search, a count of the last 24 hours of events, taking the faster of
+            Search speed is the run time of one fixed search, a count of the events in each Dataset's chosen time range, taking the faster of
             two runs on v1 just before migration and on v2 just after. Other kinds of search may gain more or less, and
             results vary with load. Not included: Cribl's system Datasets, empty Datasets (no stored data, or no events found when analyzed), and Datasets hidden on the Datasets page.
           </Text>
