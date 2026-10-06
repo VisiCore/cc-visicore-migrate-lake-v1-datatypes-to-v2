@@ -66,6 +66,8 @@ type Row = {
   id: string;
   format: string;
   size: string;
+  /** Stored bytes, for sorting the Size column numerically. */
+  sizeBytes: number;
   version: string;
   v1Datatypes: string;
   target: string;
@@ -99,7 +101,7 @@ const BASIS_APPEARANCE: Record<string, 'success' | 'info' | 'highlight' | 'warni
 
 const staticColumns = defineColumns<Row>([
   { id: 'format', label: 'Storage format', allowsSorting: true },
-  { id: 'size', label: 'Size (GB)' },
+  { id: 'size', label: 'Size (GB)', allowsSorting: true },
   {
     id: 'version',
     label: 'Search type',
@@ -345,6 +347,7 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
         id: d.id,
         format: primary ? FORMAT_ROWS[primary].label : (d.format ?? 'Unknown'),
         size: sizeGb(d) ?? EMPTY_CELL_PLACEHOLDER,
+        sizeBytes: d.metrics?.currentSizeBytes ?? 0,
         version,
         v1Datatypes: v1.length ? v1.join(', ') : 'Default rulesets',
         target: plan ? [plan.primaryId, plan.secondaryId].filter(Boolean).join(', ') : EMPTY_CELL_PLACEHOLDER,
@@ -359,6 +362,8 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
         (!needle || [r.id, r.format, r.version, r.v1Datatypes, r.target].some((v) => v.toLowerCase().includes(needle))),
     );
     const dir = sort.direction === 'descending' ? -1 : 1;
+    // Size is displayed as text ("<0.01", "--"), so sort it by the underlying bytes instead.
+    if (sort.column === 'size') return filtered.sort((a, b) => dir * (a.sizeBytes - b.sizeBytes) || a.id.localeCompare(b.id));
     return filtered.sort((a, b) => dir * String(a[sort.column]).localeCompare(String(b[sort.column]), undefined, { numeric: true }));
   }, [shown, planFor, recommendations, samples, emptyOf, verifications, analyzing, analysisErrors, hidden, measuring, benchmarks, filter, versionFilter, sort]);
 

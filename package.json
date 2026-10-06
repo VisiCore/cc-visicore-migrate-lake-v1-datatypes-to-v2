@@ -1,9 +1,9 @@
 {
   "name": "cc-visicore-migrate-lake-v1-datatypes-to-v2",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Migrate Cribl Lake Datasets from v1 to v2 Datatypes: recommends a Datatype ID for each Dataset, migrates one or many, verifies the result, and measures the change in search speed.",
-  "author": "VisiCore Tech - CriblPacks@VisiCoreTech.com",
+  "author": "Andrew Hendrix - CriblPacks@VisiCoreTech.com",
   "type": "module",
   "scripts": {
     "dev": "vite",

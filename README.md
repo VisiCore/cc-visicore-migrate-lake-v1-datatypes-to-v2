@@ -170,9 +170,9 @@ README.md
 |---|---|
 | App Name | Migrate Lake DataTypes From v1 to v2 |
 | App ID | cc-visicore-migrate-lake-v1-datatypes-to-v2 |
-| Version | 1.0.2 |
-| Author | VisiCore Tech - CriblPacks@VisiCoreTech.com |
-| Developer | Andrew Hendrix |
+| Version | 1.0.3 |
+| Author | Andrew Hendrix - CriblPacks@VisiCoreTech.com |
+| Organization | VisiCore Tech |
 | Support Model | partner-built |
 | Support Label | Partner Built |
 | Support Contact | CriblPacks@VisiCoreTech.com |
