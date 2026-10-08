@@ -66,7 +66,7 @@ The app has no settings.
 ### Typical Workflow
 1. Open the app and select **Datasets**. The table lists every Lake Dataset and whether it is on v1 or v2. Cribl's system Datasets (`cribl_logs`, `cribl_metrics`, `default_logs`, `default_metrics`, `default_spans`, `default_events`) are hidden until you select **Show system Datasets**.
 2. Select a Dataset's name to open its review panel.
-3. Choose the **Time range** for this Dataset. The same range is used for the sample analysis, the test search, and the search-speed measurement.
+3. Choose the **Time range** for this Dataset. The same range is used for the sample analysis, the test search, and the search-speed measurement. The default is the last 24 hours; choose **Last hour** for a very large Dataset to keep the search-speed measurement within search usage limits.
 4. For a JSON Dataset, select **Analyze sample events** to check its data against the v2 Datatypes. Keep the recommended Datatype ID or pick another.
 4. Optionally select **Also read Parquet data in this Dataset** (or JSON, on a Parquet Dataset).
 5. Select **Migrate to v2** and confirm.
@@ -106,7 +106,7 @@ The app makes no external calls.
 
 ## Data And Storage
 
-* The app stores three KV keys, shared by everyone who uses the app: `empty`, the Datasets whose last analysis found no events; `benchmarks-24h`, the search-speed timings per Dataset (run time, event count, when measured), and `hidden`, the IDs of Datasets set aside from the list. Recommendations and sampled events live only in the open page; nothing is kept in browser storage.
+* The app stores five KV keys, shared by everyone who uses the app: `empty`, the Datasets whose last analysis found no events; `benchmarks-24h`, the search-speed timings per Dataset (run time, event count, when measured); `hidden`, the IDs of Datasets set aside from the list; `ranges`, the time range chosen per Dataset; and `verifications`, the last test-search result per Dataset, so the **Status** column survives a reload. Recommendations and sampled events live only in the open page; nothing is kept in browser storage.
 * The only things it changes are the `searchConfig` of the Lake Datasets you confirm and any custom Datatype you choose to create. Stored data, retention, format, and description are sent back unchanged, and the app reports an error if any of them differ after a save.
 * Each analysis or test search creates one search job limited to 50 or 10 events. Measuring search speed runs two searches that count the events in the Dataset's chosen time range; a migration with measurement on runs four per Dataset (two before, two after).
 

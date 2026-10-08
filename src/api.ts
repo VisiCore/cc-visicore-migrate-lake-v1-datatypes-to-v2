@@ -376,9 +376,11 @@ export function saveEmptyResults(results: EmptyResults): Promise<void> {
 /** Outcome of the post-migration test search for one Dataset. */
 export type Verification =
   | { state: 'running' }
-  | { state: 'error'; message: string }
+  | { state: 'error'; message: string; at: number }
   | {
       state: 'done';
+      /** When the test search ran. */
+      at: number;
       eventCount: number;
       computeType?: string;
       datatypes: string[];
@@ -422,6 +424,7 @@ export async function verifyDataset(datasetId: string, windows: string[]): Promi
     }
     return {
       state: 'done',
+      at: Date.now(),
       eventCount: run.events.length,
       computeType: run.computeType,
       datatypes: [...seen],
@@ -430,8 +433,21 @@ export async function verifyDataset(datasetId: string, windows: string[]): Promi
       timeMismatches,
     };
   } catch (err) {
-    return { state: 'error', message: err instanceof Error ? err.message : String(err) };
+    return { state: 'error', message: err instanceof Error ? err.message : String(err), at: Date.now() };
   }
+}
+
+/** The last test-search result per Dataset, kept so the Status column survives a reload. A run in progress is never stored. */
+export async function loadVerifications(): Promise<Record<string, Verification>> {
+  const stored = await kvGet<Record<string, Verification>>('verifications', {});
+  return Object.fromEntries(Object.entries(stored).filter(([, v]) => v && (v.state === 'done' || v.state === 'error')));
+}
+
+export function saveVerifications(verifications: Record<string, Verification>): Promise<void> {
+  return kvPut(
+    'verifications',
+    Object.fromEntries(Object.entries(verifications).filter(([, v]) => v.state !== 'running')),
+  );
 }
 
 /** The time range chosen for each Dataset (a relative time such as "-30d"); Datasets not listed use the default. */

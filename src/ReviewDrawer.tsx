@@ -333,7 +333,8 @@ export function ReviewDrawer(props: Props) {
                     ? ` ${verify.timeMismatches} of ${verify.timeChecked} events have a different time than the _time recorded in the event, so this Datatype is reading timestamps differently from v1. Create a Datatype that uses _time, or pick another.`
                     : verify.timeChecked
                       ? ' Event times match the _time recorded in each event.'
-                      : '')}
+                      : '') +
+                  ` Checked ${new Date(verify.at).toLocaleString()}.`}
               </Alert>
             )}
           </section>

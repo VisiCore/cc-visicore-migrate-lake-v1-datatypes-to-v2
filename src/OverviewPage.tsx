@@ -14,8 +14,17 @@ type Row = {
   change: string;
   events: string;
   range: string;
+  /** The numbers behind the displayed text, for sorting. */
+  v1Ms: number;
+  v2Ms: number;
+  gain: number;
+  eventCount: number;
   [key: string]: unknown;
 };
+
+type SortDescriptor = { column: string | number; direction: 'ascending' | 'descending' };
+/** Columns shown as text but ordered by their underlying number. */
+const NUMERIC_SORT: Record<string, keyof Row> = { v1: 'v1Ms', v2: 'v2Ms', change: 'gain', events: 'eventCount' };
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const changeText = (gain: number) => {
@@ -24,19 +33,20 @@ const changeText = (gain: number) => {
 };
 
 const columns = defineColumns<Row>([
-  { id: 'id', label: 'Dataset' },
-  { id: 'v1', label: 'v1 search time' },
-  { id: 'v2', label: 'v2 search time' },
+  { id: 'id', label: 'Dataset', allowsSorting: true },
+  { id: 'v1', label: 'v1 search time', allowsSorting: true },
+  { id: 'v2', label: 'v2 search time', allowsSorting: true },
   {
     id: 'change',
     label: 'Change',
+    allowsSorting: true,
     render: (value) => (
       <Pill variant="muted" appearance={value.endsWith('faster') ? 'success' : value.endsWith('slower') ? 'warning' : 'default'}>
         {value}
       </Pill>
     ),
   },
-  { id: 'events', label: 'Events searched' },
+  { id: 'events', label: 'Events searched', allowsSorting: true },
   { id: 'range', label: 'Time range' },
 ]);
 
@@ -64,6 +74,8 @@ export function OverviewPage({ theme, onOpenDatasets }: { theme: HostTheme; onOp
   const [notCounted, setNotCounted] = useState({ empty: 0, hidden: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Fastest first by default, so the biggest wins lead the table.
+  const [sort, setSort] = useState<SortDescriptor>({ column: 'change', direction: 'descending' });
 
   const load = async () => {
     setIsLoading(true);
@@ -121,14 +133,29 @@ export function OverviewPage({ theme, onOpenDatasets }: { theme: HostTheme; onOp
     };
   }, [datasets, benchmarks]);
 
-  const rows: Row[] = stats.measured.map((m) => ({
-    id: m.id,
-    v1: seconds(m.b.v1.ms),
-    v2: seconds(m.b.v2.ms),
-    change: changeText(m.gain),
-    events: `${m.b.v1.events.toLocaleString()} → ${m.b.v2.events.toLocaleString()}`,
-    range: rangeLabel(m.b.v1.earliest).replace(/^l/, 'L'),
-  }));
+  const rows = useMemo<Row[]>(() => {
+    const all = stats.measured.map(
+      (m): Row => ({
+        id: m.id,
+        v1: seconds(m.b.v1.ms),
+        v2: seconds(m.b.v2.ms),
+        change: changeText(m.gain),
+        events: `${m.b.v1.events.toLocaleString()} → ${m.b.v2.events.toLocaleString()}`,
+        range: rangeLabel(m.b.v1.earliest).replace(/^l/, 'L'),
+        v1Ms: m.b.v1.ms,
+        v2Ms: m.b.v2.ms,
+        gain: m.gain,
+        eventCount: m.b.v1.events,
+      }),
+    );
+    const dir = sort.direction === 'descending' ? -1 : 1;
+    const numeric = NUMERIC_SORT[String(sort.column)];
+    return all.sort((a, b) =>
+      numeric
+        ? dir * (Number(a[numeric]) - Number(b[numeric])) || a.id.localeCompare(b.id)
+        : dir * String(a[sort.column]).localeCompare(String(b[sort.column]), undefined, { numeric: true }),
+    );
+  }, [stats.measured, sort]);
   const blank = isLoading && !datasets.length;
   const n = stats.measured.length;
 
@@ -228,7 +255,15 @@ export function OverviewPage({ theme, onOpenDatasets }: { theme: HostTheme; onOp
               <Button onClick={onOpenDatasets}>Go to Datasets</Button>
             </EmptyState>
           ) : (
-            <Table aria-label="Search speed by Dataset" columns={columns} visibleColumns={['id', 'v1', 'v2', 'change', 'events', 'range']} items={rows} isLoading={blank} />
+            <Table
+              aria-label="Search speed by Dataset"
+              columns={columns}
+              visibleColumns={['id', 'v1', 'v2', 'change', 'events', 'range']}
+              items={rows}
+              isLoading={blank}
+              sortDescriptor={sort}
+              onSortChange={setSort}
+            />
           )}
           <Text color="subtle" variant="body-sm-normal">
             Search speed is the run time of one fixed search, a count of the events in each Dataset's chosen time range, taking the faster of

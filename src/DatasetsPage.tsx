@@ -26,6 +26,8 @@ import {
   loadEmptyResults,
   saveEmptyResults,
   loadHiddenIds,
+  loadVerifications,
+  saveVerifications,
   loadRanges,
   saveRanges,
   saveHiddenIds,
@@ -141,7 +143,8 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
   const [benchmarks, setBenchmarks] = useState<Record<string, Benchmark>>({});
   const [measuring, setMeasuring] = useState<Set<string>>(new Set());
   const [measureOnMigrate, setMeasureOnMigrate] = useState(true);
-  const [verifications, setVerifications] = useState<Record<string, Verification>>({});
+  const [verifications, setVerificationsState] = useState<Record<string, Verification>>({});
+  const verificationsRef = useRef<Record<string, Verification>>({});
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
   // Datasets whose last analysis found no events. Remembered across reloads so they stay out of the progress numbers.
@@ -193,6 +196,13 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     // Timings are a nice-to-have: if the KV store is unavailable the app still migrates, just without history.
     loadBenchmarks().then(setBenchmarks, () => undefined);
     loadHiddenIds().then((ids) => setHidden(new Set(ids)), () => undefined);
+    loadVerifications().then(
+      (stored) => {
+        verificationsRef.current = { ...stored, ...verificationsRef.current };
+        setVerificationsState(verificationsRef.current);
+      },
+      () => undefined,
+    );
     loadRanges().then(
       (stored) => {
         rangesRef.current = { ...stored, ...rangesRef.current };
@@ -218,16 +228,18 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
       searchVersionOf(d) === 'v2' ? null : emptyReason(d, Boolean(emptyResults[d.id]), samples[d.id]?.eventCount),
     [emptyResults, samples],
   );
+  // "Show hidden Datasets" lists every hidden Dataset by itself: hiding is an explicit choice, and a Dataset
+  // hidden because it was empty (or a system one) must not stay filtered out by the other two toggles.
   const shown = useMemo(
     () =>
-      datasets.filter(
-        (d) => (showSystem || !isSystem(d.id)) && (showHidden || !hidden.has(d.id)) && (showEmpty || !emptyOf(d)),
+      datasets.filter((d) =>
+        hidden.has(d.id) ? showHidden : (showSystem || !isSystem(d.id)) && (showEmpty || !emptyOf(d)),
       ),
     [datasets, showSystem, isSystem, showHidden, hidden, showEmpty, emptyOf],
   );
   const emptyTotal = useMemo(
-    () => datasets.filter((d) => (showSystem || !isSystem(d.id)) && (showHidden || !hidden.has(d.id)) && emptyOf(d)).length,
-    [datasets, showSystem, isSystem, showHidden, hidden, emptyOf],
+    () => datasets.filter((d) => !hidden.has(d.id) && (showSystem || !isSystem(d.id)) && emptyOf(d)).length,
+    [datasets, showSystem, isSystem, hidden, emptyOf],
   );
   const hiddenCount = useMemo(() => datasets.filter((d) => hidden.has(d.id)).length, [datasets, hidden]);
 
@@ -490,13 +502,27 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
     }
   };
 
-  /** Tries each window in turn until one returns events. Pass one window to search exactly that range. */
-  const verify = useCallback(async (id: string, windows: string[]): Promise<Verification> => {
-    setVerifications((prev) => ({ ...prev, [id]: { state: 'running' } }));
-    const result = await verifyDataset(id, windows);
-    setVerifications((prev) => ({ ...prev, [id]: result }));
-    return result;
+  /**
+   * Records a Dataset's test-search state. Finished results are stored, so the Status column survives a reload;
+   * `undefined` forgets a result that no longer describes the Dataset (after a migration or revert).
+   */
+  const setVerification = useCallback((id: string, result: Verification | undefined) => {
+    const { [id]: _previous, ...others } = verificationsRef.current;
+    verificationsRef.current = result ? { ...others, [id]: result } : others;
+    setVerificationsState(verificationsRef.current);
+    if (result?.state !== 'running') saveVerifications(verificationsRef.current).catch(() => undefined);
   }, []);
+
+  /** Tries each window in turn until one returns events. Pass one window to search exactly that range. */
+  const verify = useCallback(
+    async (id: string, windows: string[]): Promise<Verification> => {
+      setVerification(id, { state: 'running' });
+      const result = await verifyDataset(id, windows);
+      setVerification(id, result);
+      return result;
+    },
+    [setVerification],
+  );
 
   /**
    * After a migration, in the background and one Dataset at a time: verify the Dataset really searches on v2,
@@ -554,6 +580,8 @@ export function DatasetsPage({ theme }: { theme: HostTheme }) {
         else if (plan) await updateSearchConfig(id, toV2(dataset, plan));
         else throw new Error(`Storage format "${dataset.format}" does not support v2.`);
         ok += 1;
+        // The search config just changed, so an earlier test-search result no longer describes this Dataset.
+        setVerification(id, undefined);
         if (action.mode === 'migrate') migrated.push(id);
       } catch (err) {
         failed.push({ id, message: errorMessage(err) });

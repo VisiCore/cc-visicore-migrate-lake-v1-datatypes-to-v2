@@ -2,6 +2,7 @@
 // the test search, and the search-speed measurement, so all three look at the same data.
 
 export const TIME_RANGES = [
+  { id: '-1h', label: 'Last hour' },
   { id: '-24h', label: 'Last 24 hours' },
   { id: '-7d', label: 'Last 7 days' },
   { id: '-30d', label: 'Last 30 days' },
